@@ -1,0 +1,252 @@
+import random
+
+class MazeNode:
+
+    def __init__(self, x, y):
+
+        self.x = x
+
+        self.y = y
+
+        self.children = []
+
+    def add_child(self, child):
+
+        self.children.append(child)
+
+    def print_tree(self, level=0, visited=None):
+
+        if visited is None:
+
+            visited = set()
+
+        if (self.x, self.y) in visited:
+
+            return
+        
+        visited.add((self.x, self.y))
+
+        print("  " * level + f"({self.x},{self.y})")
+
+        for child in self.children:
+            
+            child.print_tree(level + 1, visited)
+
+maze_width = 6
+
+maze_height = 6
+
+maze_grid = [[0 for _ in range(maze_width)] for _ in range(maze_height)]
+
+# Direction constants
+NORTH, SOUTH, EAST, WEST = 1, 2, 4, 8
+
+DX = {EAST: 1, WEST: -1, NORTH: 0, SOUTH: 0}
+
+DY = {EAST: 0, WEST: 0, NORTH: -1, SOUTH: 1}
+
+OPPOSITE = {EAST: WEST, WEST: EAST, NORTH: SOUTH, SOUTH: NORTH}
+
+class SelectionStrategy:
+
+    def __init__(self, mode_string):
+
+        self.strategy_list = [self.strategy(strategy) for strategy in mode_string.split(";")]
+
+        self.current_strategy = 0
+
+    def strategy(self, strategy_string):
+
+        total_weight = 0  # Weight is the chance that a strategy will be chosen(random, newest)
+
+        weighted_choices = []
+
+        for element in strategy_string.split(","):
+
+            if ":" in element:
+
+                name, weight = element.split(":")
+
+                weight = int(weight)
+
+            else:
+
+                name, weight = element, 100
+
+            total_weight += weight
+
+            weighted_choices.append({"name": name, "weight": total_weight})
+
+        return {"total": total_weight, "choices": weighted_choices}
+
+    def next_index(self, num_cells):
+
+        strategy = self.strategy_list[self.current_strategy]
+
+        self.current_strategy = (self.current_strategy + 1) % len(self.strategy_list)
+
+        v = random.randrange(strategy["total"])
+
+        for choice in strategy["choices"]:
+
+            if v < choice["weight"]:
+
+                if choice["name"] in ("random", "r"):
+
+                    return random.randrange(num_cells)
+                
+                elif choice["name"] in ("newest", "n"):
+
+                    return num_cells - 1
+                
+                elif choice["name"] in ("middle", "m"):
+
+                    return num_cells // 2
+                
+                elif choice["name"] in ("oldest", "o"):
+
+                    return 0
+
+    def __str__(self):
+
+        out = []
+
+        for strategy in self.strategy_list:
+
+            v = 0
+
+            parts = []
+
+            for choice in strategy["choices"]:
+
+                s = f"{choice['name']}:{choice['weight']-v}"
+
+                v = choice['weight']
+
+                parts.append(s)
+
+            out.append(",".join(parts))
+
+        return ";".join(out)
+
+cell_stack = []
+
+start_x, start_y = random.randrange(maze_width), random.randrange(maze_height)
+
+cell_stack.append([start_x, start_y])
+
+while cell_stack:
+
+    index = random.randrange(len(cell_stack))
+
+    x, y = cell_stack[index]
+
+    for direction in random.sample([NORTH, SOUTH, EAST, WEST], 4):
+
+        nx, ny = x + DX[direction], y + DY[direction]
+
+        if 0 <= nx < maze_width and 0 <= ny < maze_height and maze_grid[ny][nx] == 0:
+
+            maze_grid[y][x] |= direction
+
+            maze_grid[ny][nx] |= OPPOSITE[direction]
+
+            cell_stack.append([nx, ny])
+
+            index = None
+
+            break
+
+    if index is not None:
+
+        del cell_stack[index]
+
+def build_maze_tree(maze_grid):
+
+    height = len(maze_grid)
+
+    width = len(maze_grid[0])
+    
+    nodes = [[MazeNode(x, y) for x in range(width)] for y in range(height)]
+
+    visited = set()
+
+    def connect(x, y):
+
+        visited.add((x, y))
+        
+        cell = maze_grid[y][x]
+
+        for direction, dx, dy in [
+
+            (NORTH, 0, -1),
+
+            (SOUTH, 0, 1),
+
+            (EAST, 1, 0),
+
+            (WEST, -1, 0)]:
+            
+            nx, ny = x + dx, y + dy
+
+            if 0 <= nx < width and 0 <= ny < height:
+
+                if (cell & direction) != 0 and (nx, ny) not in visited:
+
+                    nodes[y][x].add_child(nodes[ny][nx])
+
+                    connect(nx, ny)
+
+    connect(0, 0)
+
+    return nodes[0][0]  # Return the root node
+
+#display_maze(maze_grid)
+
+root_node = build_maze_tree(maze_grid)
+
+root_node.print_tree()
+
+
+def find_shortest_path(root, goal_x, goal_y):
+
+    from collections import deque
+
+    queue = deque()
+
+    queue.append((root, [(root.x, root.y)]))  # (current_node, path_so_far)
+
+    visited = set()
+
+    while queue:
+
+        node, path = queue.popleft()
+
+        if (node.x, node.y) == (goal_x, goal_y):
+
+            return path  # Found the end!
+
+        visited.add((node.x, node.y))
+
+        for child in node.children:
+
+            if (child.x, child.y) not in visited:
+
+                queue.append((child, path + [(child.x, child.y)]))
+
+    return None  # No path found
+
+goal_x, goal_y = maze_width - 1, maze_height - 1
+
+optimal_path = find_shortest_path(root_node, goal_x, goal_y)
+
+print("\nOptimal path:")
+
+if optimal_path:
+
+    print(" -> ".join(f"({x},{y})" for x, y in optimal_path))
+
+else:
+
+    print("No path found!")
+
