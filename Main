@@ -26,7 +26,7 @@ class MazeNode:
         
         visited.add((self.x, self.y))
 
-        print("  " * level + f"({self.x},{self.y})")
+        print("--" * level + f"({self.x},{self.y})")
 
         for child in self.children:
             
